@@ -1,45 +1,85 @@
-#include <unistd.h>     // fork, execvp, pipe, dup2, close
-#include <sys/types.h>  // pid_t
-#include <sys/wait.h>   // wait, WIFEXITED, WEXITSTATUS
-#include <stdlib.h>     // exit
+#include <unistd.h>
+#include <stdlib.h>
+#include <sys/wait.h>
+
+// Exécute une commande dans le processus enfant
+void	exec_cmd(char **cmd, int prev_fd, int pipefd[2], int has_next)
+{
+	if (prev_fd != -1)
+	{
+		if (dup2(prev_fd, STDIN_FILENO) == -1)
+			exit(1);
+		close(prev_fd);
+	}
+	if (has_next)
+	{
+		close(pipefd[0]);
+		if (dup2(pipefd[1], STDOUT_FILENO) == -1)
+			exit(1);
+		close(pipefd[1]);
+	}
+	execvp(cmd[0], cmd);
+	exit(1);
+}
+
+// Nettoie les file descriptors en cas d'erreur de fork
+void	cleanup_on_fork_error(int prev_fd, int pipefd[2], int has_next)
+{
+	if (has_next)
+	{
+		close(pipefd[0]);
+		close(pipefd[1]);
+	}
+	if (prev_fd != -1)
+		close(prev_fd);
+}
+
+// Attend tous les processus enfants et retourne le code de sortie
+int	wait_all_children(void)
+{
+	int	status;
+	int	exit_code;
+
+	exit_code = 0;
+	while (wait(&status) != -1)
+	{
+		if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
+			exit_code = 1;
+		else if (!WIFEXITED(status))
+			exit_code = 1;
+	}
+	return (exit_code);
+}
 
 int picoshell(char **cmds[])
 {
-    int i = 0, in_fd = 0, fd[2], pid, status;
-    
-    while (cmds[i])
-    {
-        if (cmds[i + 1] && pipe(fd) < 0)
-            return 1;
-        if ((pid = fork()) < 0)
-            return 1;
-        if (pid == 0)
-        {
-            if (in_fd != 0)
-            {
-                dup2(in_fd, 0);
-                close(in_fd);
-            }
-            if (cmds[i + 1])
-            {
-                dup2(fd[1], 1);
-                close(fd[0]);
-                close(fd[1]);
-            }
-            execvp(cmds[i][0], cmds[i]);
-            exit(1);
-        }
-        if (in_fd != 0)
-            close(in_fd);
-        if (cmds[i + 1])
-        {
-            close(fd[1]);
-            in_fd = fd[0];
-        }
-        i++;
-    }
-    while (wait(&status) > 0)
-        if (!WIFEXITED(status) || WEXITSTATUS(status))
-            return 1;
-    return 0;
+	int		i;
+	int		pipefd[2];
+	int		prev_fd;
+	pid_t	pid;
+
+	i = 0;
+	prev_fd = -1;
+	while (cmds[i])
+	{
+		if (cmds[i + 1] && pipe(pipefd))
+			return (1);
+		pid = fork();
+		if (pid == -1)
+		{
+			cleanup_on_fork_error(prev_fd, pipefd, cmds[i + 1] != NULL);
+			return (1);
+		}
+		if (pid == 0)
+			exec_cmd(cmds[i], prev_fd, pipefd, cmds[i + 1] != NULL);
+		if (prev_fd != -1)
+			close(prev_fd);
+		if (cmds[i + 1])
+		{
+			close(pipefd[1]);
+			prev_fd = pipefd[0];
+		}
+		i++;
+	}
+	return (wait_all_children());
 }
