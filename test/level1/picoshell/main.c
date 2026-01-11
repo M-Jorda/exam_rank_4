@@ -6,7 +6,7 @@
 /*   By: jjorda <jjorda@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2026/01/08 13:28:37 by jjorda            #+#    #+#             */
-/*   Updated: 2026/01/08 14:21:16 by jjorda           ###   ########.fr       */
+/*   Updated: 2026/01/11 13:12:06 by jjorda           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -255,25 +255,25 @@ int main(void) {
         char **cmds[] = {cmd1, cmd2, NULL};
         
         print_test_name("echo test | /invalid/command");
-        print_info("Should return 1 and not leak FDs");
+        print_info("According to subject: should return 0 (no system error) and not leak FDs");
         
         int fd_before = count_fds();
         int ret = picoshell(cmds);
         int fd_after = count_fds();
         
-        if (ret == 1) {
-            print_success("Correctly returned error code 1");
+        if (ret == 0) {
+            print_success("Correctly returned 0 (no system error - execvp fail in child is not parent error)");
         } else {
             char msg[256];
-            sprintf(msg, "Expected return 1, got %d", ret);
+            sprintf(msg, "Expected return 0, got %d", ret);
             print_failure(msg);
         }
         
         if (fd_after == fd_before) {
-            print_success("No FD leaks on error");
+            print_success("No FD leaks");
         } else {
             char msg[256];
-            sprintf(msg, "FD leak on error: %d before, %d after", fd_before, fd_after);
+            sprintf(msg, "FD leak: %d before, %d after", fd_before, fd_after);
             print_failure(msg);
         }
     }
@@ -288,16 +288,18 @@ int main(void) {
         char **cmds[] = {cmd1, cmd2, NULL};
         
         print_test_name("ls /nonexistent | grep anything");
-        print_info("First command fails but pipeline should handle it");
+        print_info("First command fails but pipeline executes (no system error)");
         
         int fd_before = count_fds();
         int ret = picoshell(cmds);
         int fd_after = count_fds();
         
-        if (ret == 1) {
-            print_success("Correctly detected error");
+        if (ret == 0) {
+            print_success("Correctly returned 0 (commands executed, no system error)");
         } else {
-            print_info("Some implementations may return 0 if second command succeeds");
+            char msg[256];
+            sprintf(msg, "Expected 0, got %d", ret);
+            print_failure(msg);
         }
         
         if (fd_after == fd_before) {

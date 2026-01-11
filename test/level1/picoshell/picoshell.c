@@ -34,21 +34,14 @@ void	cleanup_on_fork_error(int prev_fd, int pipefd[2], int has_next)
 		close(prev_fd);
 }
 
-// Attend tous les processus enfants et retourne le code de sortie
+// Attend tous les processus enfants et retourne 0 (conforme au sujet)
 int	wait_all_children(void)
 {
 	int	status;
-	int	exit_code;
 
-	exit_code = 0;
 	while (wait(&status) != -1)
-	{
-		if (WIFEXITED(status) && WEXITSTATUS(status) != 0)
-			exit_code = 1;
-		else if (!WIFEXITED(status))
-			exit_code = 1;
-	}
-	return (exit_code);
+		;
+	return (0);
 }
 
 int picoshell(char **cmds[])
